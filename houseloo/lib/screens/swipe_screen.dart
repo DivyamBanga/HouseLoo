@@ -13,14 +13,15 @@ class SwipeScreen extends StatefulWidget {
   State<SwipeScreen> createState() => _SwipeScreenState();
 }
 
-class _SwipeScreenState extends State<SwipeScreen> with TickerProviderStateMixin {
+class _SwipeScreenState extends State<SwipeScreen>
+    with TickerProviderStateMixin {
   final ListingService _listingService = ListingService();
   final SavedListingsService _savedService = SavedListingsService();
 
   List<Listing> _listings = [];
   int _currentIndex = 0;
   bool _isLoading = true;
-  
+
   // Drag animation variables
   Offset _dragOffset = Offset.zero;
   double _dragRotation = 0;
@@ -56,7 +57,7 @@ class _SwipeScreenState extends State<SwipeScreen> with TickerProviderStateMixin
       setState(() => _currentIndex++);
     }
   }
-  
+
   void _onDragStart(DragStartDetails details) {
     setState(() {
       _isDragging = true;
@@ -73,7 +74,7 @@ class _SwipeScreenState extends State<SwipeScreen> with TickerProviderStateMixin
 
   void _onDragEnd(DragEndDetails details) {
     final screenWidth = MediaQuery.of(context).size.width;
-    
+
     // If dragged more than 30% of screen width, trigger action
     if (_dragOffset.dx.abs() > screenWidth * 0.3) {
       if (_dragOffset.dx > 0) {
@@ -92,7 +93,7 @@ class _SwipeScreenState extends State<SwipeScreen> with TickerProviderStateMixin
   void _animateCardOffScreen(bool isSaved) {
     final screenWidth = MediaQuery.of(context).size.width;
     final targetX = isSaved ? screenWidth * 1.5 : -screenWidth * 1.5;
-    
+
     setState(() {
       _dragOffset = Offset(targetX, _dragOffset.dy);
     });
@@ -114,7 +115,7 @@ class _SwipeScreenState extends State<SwipeScreen> with TickerProviderStateMixin
       } else {
         HapticFeedback.lightImpact();
       }
-      
+
       _nextCard();
       _resetCardPosition();
     });
@@ -214,12 +215,13 @@ class _SwipeScreenState extends State<SwipeScreen> with TickerProviderStateMixin
             onPanUpdate: _onDragUpdate,
             onPanEnd: _onDragEnd,
             child: AnimatedContainer(
-              duration: _isDragging 
-                  ? Duration.zero 
+              duration: _isDragging
+                  ? Duration.zero
                   : const Duration(milliseconds: 300),
               curve: Curves.easeOut,
-              transform: Matrix4.translationValues(_dragOffset.dx, _dragOffset.dy, 0)
-                ..rotateZ(_dragRotation),
+              transform:
+                  Matrix4.translationValues(_dragOffset.dx, _dragOffset.dy, 0)
+                    ..rotateZ(_dragRotation),
               child: Stack(
                 children: [
                   Padding(
