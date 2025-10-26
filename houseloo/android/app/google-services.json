@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "288255702603",
+    "project_id": "houseloo",
+    "storage_bucket": "houseloo.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:288255702603:android:8b6c7502132f73ce7c3fce",
+        "android_client_info": {
+          "package_name": "com.example.houseloo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAl-Xd9csbmMutHT5aBNejPGLFUje5nDQ8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
