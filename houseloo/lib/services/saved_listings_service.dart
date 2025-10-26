@@ -16,14 +16,22 @@ class SavedListingsService {
   }
 
   Future<void> saveListing(Listing listing) async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedListings = await getSavedListings();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedListings = await getSavedListings();
 
-    if (!savedListings.any((l) => l.id == listing.id)) {
-      savedListings.add(listing);
-      final String jsonString =
-          json.encode(savedListings.map((l) => l.toJson()).toList());
-      await prefs.setString(_key, jsonString);
+      if (!savedListings.any((l) => l.id == listing.id)) {
+        savedListings.add(listing);
+        final String jsonString =
+            json.encode(savedListings.map((l) => l.toJson()).toList());
+        await prefs.setString(_key, jsonString);
+        print('Successfully saved listing: ${listing.id} - ${listing.address}');
+      } else {
+        print('Listing already saved: ${listing.id}');
+      }
+    } catch (e) {
+      print('Error saving listing: $e');
+      rethrow;
     }
   }
 
