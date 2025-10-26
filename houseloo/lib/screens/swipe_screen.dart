@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../models/listing.dart';
 import '../services/listing_service.dart';
 import '../services/saved_listings_service.dart';
+import '../services/swipe_state_service.dart';
 import '../widgets/listing_card.dart';
 import 'listing_detail_screen.dart';
 
@@ -17,6 +18,7 @@ class _SwipeScreenState extends State<SwipeScreen>
     with TickerProviderStateMixin {
   final ListingService _listingService = ListingService();
   final SavedListingsService _savedService = SavedListingsService();
+  final SwipeStateService _swipeStateService = SwipeStateService();
 
   List<Listing> _listings = [];
   int _currentIndex = 0;
@@ -30,7 +32,16 @@ class _SwipeScreenState extends State<SwipeScreen>
   @override
   void initState() {
     super.initState();
+    // Restore the saved position
+    _currentIndex = _swipeStateService.currentIndex;
     _loadListings();
+  }
+
+  @override
+  void dispose() {
+    // Save current position before leaving
+    _swipeStateService.setCurrentIndex(_currentIndex);
+    super.dispose();
   }
 
   Future<void> _loadListings() async {
@@ -38,6 +49,10 @@ class _SwipeScreenState extends State<SwipeScreen>
       final listings = await _listingService.loadListings();
       setState(() {
         _listings = listings;
+        // Ensure currentIndex is within bounds
+        if (_currentIndex >= listings.length) {
+          _currentIndex = 0;
+        }
         _isLoading = false;
       });
     } catch (e) {
@@ -54,7 +69,11 @@ class _SwipeScreenState extends State<SwipeScreen>
 
   void _nextCard() {
     if (_currentIndex < _listings.length - 1) {
-      setState(() => _currentIndex++);
+      setState(() {
+        _currentIndex++;
+        // Save state after each swipe
+        _swipeStateService.setCurrentIndex(_currentIndex);
+      });
     }
   }
 
@@ -349,6 +368,8 @@ class _SwipeScreenState extends State<SwipeScreen>
             onPressed: () {
               setState(() {
                 _currentIndex = 0;
+                // Reset saved state
+                _swipeStateService.setCurrentIndex(0);
                 _resetCardPosition();
               });
             },
