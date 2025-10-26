@@ -13,14 +13,18 @@ class SwipeScreen extends StatefulWidget {
   State<SwipeScreen> createState() => _SwipeScreenState();
 }
 
-class _SwipeScreenState extends State<SwipeScreen> {
+class _SwipeScreenState extends State<SwipeScreen> with TickerProviderStateMixin {
   final ListingService _listingService = ListingService();
   final SavedListingsService _savedService = SavedListingsService();
 
-  final PageController _pageController = PageController();
   List<Listing> _listings = [];
   int _currentIndex = 0;
   bool _isLoading = true;
+  
+  // Drag animation variables
+  Offset _dragOffset = Offset.zero;
+  double _dragRotation = 0;
+  bool _isDragging = false;
 
   @override
   void initState() {
@@ -49,38 +53,79 @@ class _SwipeScreenState extends State<SwipeScreen> {
 
   void _nextCard() {
     if (_currentIndex < _listings.length - 1) {
-      _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
       setState(() => _currentIndex++);
     }
   }
+  
+  void _onDragStart(DragStartDetails details) {
+    setState(() {
+      _isDragging = true;
+    });
+  }
 
-  Future<void> _saveListing() async {
-    if (_currentIndex < _listings.length) {
-      final listing = _listings[_currentIndex];
-      await _savedService.saveListing(listing);
-      
-      HapticFeedback.mediumImpact();
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Listing saved!'),
-            duration: Duration(seconds: 1),
-            backgroundColor: Colors.green,
-          ),
-        );
+  void _onDragUpdate(DragUpdateDetails details) {
+    setState(() {
+      _dragOffset += details.delta;
+      // Calculate rotation based on horizontal drag
+      _dragRotation = _dragOffset.dx / 1000;
+    });
+  }
+
+  void _onDragEnd(DragEndDetails details) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    
+    // If dragged more than 30% of screen width, trigger action
+    if (_dragOffset.dx.abs() > screenWidth * 0.3) {
+      if (_dragOffset.dx > 0) {
+        // Swiped right - save
+        _animateCardOffScreen(true);
+      } else {
+        // Swiped left - skip
+        _animateCardOffScreen(false);
       }
-      
-      _nextCard();
+    } else {
+      // Return to center
+      _resetCardPosition();
     }
   }
 
-  void _skipListing() {
-    HapticFeedback.lightImpact();
-    _nextCard();
+  void _animateCardOffScreen(bool isSaved) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final targetX = isSaved ? screenWidth * 1.5 : -screenWidth * 1.5;
+    
+    setState(() {
+      _dragOffset = Offset(targetX, _dragOffset.dy);
+    });
+
+    HapticFeedback.mediumImpact();
+
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (isSaved && _currentIndex < _listings.length) {
+        _savedService.saveListing(_listings[_currentIndex]);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Listing saved!'),
+              duration: Duration(seconds: 1),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        HapticFeedback.lightImpact();
+      }
+      
+      _nextCard();
+      _resetCardPosition();
+    });
+  }
+
+  void _resetCardPosition() {
+    setState(() {
+      _dragOffset = Offset.zero;
+      _dragRotation = 0;
+      _isDragging = false;
+    });
   }
 
   @override
@@ -108,8 +153,6 @@ class _SwipeScreenState extends State<SwipeScreen> {
                           ? _buildEndState()
                           : _buildCardStack(),
             ),
-            if (!_isLoading && _currentIndex < _listings.length)
-              _buildActionButtons(),
           ],
         ),
       ),
@@ -158,84 +201,95 @@ class _SwipeScreenState extends State<SwipeScreen> {
           Positioned.fill(
             child: Padding(
               padding: const EdgeInsets.all(24.0),
-              child: GestureDetector(
-                onTap: () => _showDetails(_listings[_currentIndex + 1]),
+              child: Opacity(
+                opacity: 0.5,
                 child: ListingCard(listing: _listings[_currentIndex + 1]),
               ),
             ),
           ),
-        // Current card
-        PageView.builder(
-          controller: _pageController,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _listings.length,
-          itemBuilder: (context, index) {
-            return Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: GestureDetector(
-                onTap: () => _showDetails(_listings[index]),
-                child: ListingCard(listing: _listings[index]),
+        // Current draggable card
+        Positioned.fill(
+          child: GestureDetector(
+            onPanStart: _onDragStart,
+            onPanUpdate: _onDragUpdate,
+            onPanEnd: _onDragEnd,
+            child: AnimatedContainer(
+              duration: _isDragging 
+                  ? Duration.zero 
+                  : const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+              transform: Matrix4.translationValues(_dragOffset.dx, _dragOffset.dy, 0)
+                ..rotateZ(_dragRotation),
+              child: Stack(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: GestureDetector(
+                      onTap: () => _showDetails(_listings[_currentIndex]),
+                      child: ListingCard(listing: _listings[_currentIndex]),
+                    ),
+                  ),
+                  // Overlay indicators
+                  if (_dragOffset.dx > 50)
+                    Positioned(
+                      top: 100,
+                      right: 50,
+                      child: Transform.rotate(
+                        angle: -0.3,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.green,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.white, width: 3),
+                          ),
+                          child: const Text(
+                            'SAVE',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (_dragOffset.dx < -50)
+                    Positioned(
+                      top: 100,
+                      left: 50,
+                      child: Transform.rotate(
+                        angle: 0.3,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.white, width: 3),
+                          ),
+                          child: const Text(
+                            'SKIP',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
-            );
-          },
+            ),
+          ),
         ),
       ],
-    );
-  }
-
-  Widget _buildActionButtons() {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildActionButton(
-            icon: Icons.close,
-            color: const Color(0xFFFF6B6B),
-            onPressed: _skipListing,
-          ),
-          _buildActionButton(
-            icon: Icons.favorite,
-            color: const Color(0xFF4ECDC4),
-            onPressed: _saveListing,
-            isLarge: true,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required Color color,
-    required VoidCallback onPressed,
-    bool isLarge = false,
-  }) {
-    final size = isLarge ? 70.0 : 60.0;
-    final iconSize = isLarge ? 35.0 : 30.0;
-
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.3),
-              blurRadius: 15,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Icon(
-          icon,
-          color: Colors.white,
-          size: iconSize,
-        ),
-      ),
     );
   }
 
@@ -264,8 +318,7 @@ class _SwipeScreenState extends State<SwipeScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.check_circle_outline,
-              size: 80, color: Colors.white),
+          const Icon(Icons.check_circle_outline, size: 80, color: Colors.white),
           const SizedBox(height: 20),
           const Text(
             'You\'ve seen all listings!',
@@ -280,7 +333,7 @@ class _SwipeScreenState extends State<SwipeScreen> {
             onPressed: () {
               setState(() {
                 _currentIndex = 0;
-                _pageController.jumpToPage(0);
+                _resetCardPosition();
               });
             },
             style: ElevatedButton.styleFrom(
@@ -307,11 +360,5 @@ class _SwipeScreenState extends State<SwipeScreen> {
         builder: (context) => ListingDetailScreen(listing: listing),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
   }
 }
