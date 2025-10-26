@@ -90,19 +90,14 @@ class _SwipeScreenState extends State<SwipeScreen>
     }
   }
 
-  void _animateCardOffScreen(bool isSaved) {
+  void _animateCardOffScreen(bool isSaved) async {
     final screenWidth = MediaQuery.of(context).size.width;
     final targetX = isSaved ? screenWidth * 1.5 : -screenWidth * 1.5;
 
-    setState(() {
-      _dragOffset = Offset(targetX, _dragOffset.dy);
-    });
-
-    HapticFeedback.mediumImpact();
-
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (isSaved && _currentIndex < _listings.length) {
-        _savedService.saveListing(_listings[_currentIndex]);
+    // Save immediately if swiped right
+    if (isSaved && _currentIndex < _listings.length) {
+      try {
+        await _savedService.saveListing(_listings[_currentIndex]);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -112,12 +107,31 @@ class _SwipeScreenState extends State<SwipeScreen>
             ),
           );
         }
-      } else {
-        HapticFeedback.lightImpact();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to save listing'),
+              duration: Duration(seconds: 1),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
+    }
 
-      _nextCard();
-      _resetCardPosition();
+    setState(() {
+      _dragOffset = Offset(targetX, _dragOffset.dy);
+    });
+
+    HapticFeedback.mediumImpact();
+
+    // Wait for animation to complete, then move to next card
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        _nextCard();
+        _resetCardPosition();
+      }
     });
   }
 
