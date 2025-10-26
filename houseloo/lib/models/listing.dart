@@ -27,7 +27,7 @@ class Listing {
 
   factory Listing.fromJson(Map<String, dynamic> json) {
     return Listing(
-      id: json['id'] as String,
+      id: json['id'].toString(),
       address: json['address'] as String,
       price: json['price'] as int,
       bedrooms: json['bedrooms'] as int,
